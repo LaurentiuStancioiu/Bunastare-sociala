@@ -3,6 +3,7 @@ import os
 import time
 from pathlib import Path
 from ipyleaflet import Map, Marker, Popup, Icon, basemaps, TileLayer
+import ipyleaflet
 from ipywidgets import HTML, widgets
 from openai import NotFoundError, OpenAI
 from openai.types.beta import Thread
@@ -29,7 +30,7 @@ amadeus = Client(
 
 
 HERE = Path(__file__).parent
-
+print(HERE)
 center_default = (0, 0)
 zoom_default = 2
 
@@ -212,7 +213,7 @@ def get_current_temperature(latitude: float, longitude: float) -> dict:
         'forecast_days': 1,
     }
     update_map(longitude, latitude, zoom=15)
-    add_marker(longitude, latitude, "Current Location")
+    #add_marker(longitude, latitude, "Current Location")
     # Make the request
     response = requests.get(BASE_URL, params=params)
     #print(response.json())
@@ -238,7 +239,7 @@ def search_wikipedia(query: str) -> str:
     """Run Wikipedia search and get page summaries."""
     page_titles = wikipedia.search(query)
     summaries = []
-    for page_title in page_titles[: 3]:
+    for page_title in page_titles[: 2]:
         try:
             wiki_page =  wikipedia.page(title=page_title, auto_suggest=False)
             summaries.append(f"Page: {page_title}\nSummary: {wiki_page.summary}")
@@ -259,11 +260,11 @@ def nearest_relevant_airport(latitude: float, longitude: float)-> str:
             longitude=longitude
         )
         #print(response.data)
-        airport_data = [(airport['name'], airport['geoCode']['latitude'], airport['geoCode']['longitude']) for airport in response.data]
+        airport_data = [(airport['name'], airport['geoCode']['latitude'], airport['geoCode']['longitude']) for airport in response.data[:2]]
         initial_location = airport_data[0]
         update_map(initial_location[2], initial_location[1], zoom=10)
         for name, latitude, longitude in airport_data:
-            add_marker(longitude, latitude, name)
+            add_marker(longitude, latitude, name, "airport")
         return f"{airport_data}"
     except ResponseError as error:
         return str(error)
@@ -276,13 +277,13 @@ def search_point_of_interest(latitude: float, longitude: float)-> str:
             latitude=latitude,
             longitude=longitude
         )
-        extracted_data = [(loc['name'], loc['geoCode']['latitude'], loc['geoCode']['longitude']) for loc in response.data]
+        extracted_data = [(loc['name'], loc['geoCode']['latitude'], loc['geoCode']['longitude']) for loc in response.data[:5]]
         initial_location = extracted_data[0]
         update_map(initial_location[2], initial_location[1], zoom=10)
 
         # Add markers for each location
         for name, latitude, longitude in extracted_data:
-            add_marker(longitude, latitude, name)
+            add_marker(longitude, latitude, name, "point_of_interest")
         return f"{extracted_data}"
     except ResponseError as error:
         return str(error)
@@ -294,11 +295,11 @@ def search_hotels(city_code: str)-> str:
             cityCode=city_code
         )
         hotel_offers = []
-        for hotel in response.data[:10]:
+        for hotel in response.data[:5]:
             list_offer = HotelList(hotel).construct_hotel_list()
             hotel_offers.append(list_offer)
         for hotel_offer in hotel_offers:
-            add_marker(hotel_offer["longitude"], hotel_offer["latitude"], hotel_offer["name"])
+            add_marker(hotel_offer["longitude"], hotel_offer["latitude"], hotel_offer["name"], "hotel")
         update_map(hotel_offers[0]["longitude"], hotel_offers[0]["latitude"], zoom=10)
         return f"{hotel_offers}"
 
@@ -311,10 +312,17 @@ def update_map(longitude, latitude, zoom):
     return "Map updated"
 
 
-def add_marker(longitude, latitude, label):
-    markers.set(markers.value + [{"location": (latitude, longitude), "label": label}])
+# def add_marker(longitude, latitude, label):
+#     markers.set(markers.value + [{"location": (latitude, longitude), "label": label}])
+#     return "Marker added"
+def add_marker(longitude, latitude, label, location_type):
+    new_marker = {
+        "location": (latitude, longitude),
+        "label": label,
+        "type": location_type  # Add the type attribute here
+    }
+    markers.set(markers.value + [new_marker])
     return "Marker added"
-
 
 functions = {
     "update_map": update_map,
@@ -354,56 +362,87 @@ def Map():
     #         ],
     #     ],
     # )
+    icons = {
+    "hotel": {"icon_url": "/static/public/hotel_2.png", "icon_size": [25, 25]},
+    "airport": {"icon_url": "/static/public/airport.png", "icon_size": [25, 25]},
+    "point_of_interest": {"icon_url": "/static/public/point-of-interest.png", "icon_size": [25, 25]},
+    }
+
+
     marker_elements = []
     for location in markers.value:
-        popup = ipyleaflet.Popup(
-            location=location["location"],
-            child=HTML(value=location["label"]),
-            close_button=False,
-            auto_close=False,
-            close_on_escape_key=False
+        icon_info = icons.get(location.get("type"), None)
+        #print(icon_info)
+        if icon_info:
+            # Ensure the icon URL is correct and accessible
+            icon = Icon(**icon_info)
+            #print(icon)
+        else:
+            icon = None
+
+        popup_widget = widgets.HTML(value=location["label"])
+        popup = Popup(
+            location=location["location"], 
+            child=popup_widget, 
+            close_button=False, 
+            auto_close=False
         )
-        marker = ipyleaflet.Marker(
-            location=location["location"],
-            draggable=False,
-            title=location["label"],  # Shows label on hover
-            popup=popup  # Popup on click
+
+        marker = Marker(
+            location=location["location"], 
+            icon=icon, 
+            draggable=False, 
+            title=location["label"], 
+            popup=popup
         )
         marker_elements.append(marker)
+    #print(marker_elements)
 
-    # Render the map with the markers
-    ipyleaflet.Map.element(
-        zoom=zoom_level.value,
+    # Include the markers in the layers of the map
+    return ipyleaflet.Map.element(
         center=center.value,
+        zoom=zoom_level.value,
         scroll_wheel_zoom=True,
         layers=[
             ipyleaflet.TileLayer.element(url=url),
-            *marker_elements,  # Use the new marker_elements list
-        ],
+            *marker_elements
+        ]
     )
 
+marker_message_shown = False  
 
 @solara.component
 def ChatMessage(message):
-    global recording, audio_file_path
+    global recording, audio_file_path, marker_message_shown
+
     with solara.Row(style={"align-items": "flex-start"}):
-        # Catch "messages" that are actually tool calls
+        # Handle recording status
         if recording:
             solara.v.Icon(children=["mdi-microphone"], style_="padding-top:10px;")
             solara.Markdown("Recording...")
+
+        # Process different types of messages
         if isinstance(message, dict):
-            icon = "mdi-map" if message["output"] == "Map updated" else "mdi-map-marker"
-            solara.v.Icon(children=[icon], style_="padding-top: 10px;")
-            #solara.Markdown(message["output"])
+            # Handle map updates separately
+            if message["output"] == "Map updated":
+                solara.v.Icon(children=["mdi-map"], style_="padding-top: 10px;")
+                solara.Markdown(message["output"])
+            # Display "Marker added" message only once
+            elif message["output"] == "Marker added" and not marker_message_shown:
+                solara.Markdown("Markers have been added to the map.")
+                marker_message_shown = True  # Set the flag to True after displaying the message
         elif message.role == "user":
+            # Display user messages
             solara.Text(message.content[0].text.value, style={"font-weight": "bold;"})
         elif message.role == "assistant":
+            # Display assistant messages
             if message.content[0].text.value:
                 solara.v.Icon(
                     children=["mdi-compass-outline"], style_="padding-top: 10px;"
                 )
                 solara.Markdown(message.content[0].text.value)
             elif message.content.tool_calls:
+                # Display tool call messages
                 solara.v.Icon(children=["mdi-map"], style_="padding-top: 10px;")
                 solara.Markdown("*Calling map functions*")
             else:
@@ -412,8 +451,11 @@ def ChatMessage(message):
                 )
                 solara.Preformatted(repr(message))
         else:
+            # Handle other types of messages
             solara.v.Icon(children=["mdi-compass-outline"], style_="padding-top: 10px;")
             solara.Preformatted(repr(message))
+
+
 
 def VoiceRecordingButton():
     global audio_file_path
@@ -580,7 +622,7 @@ def ChatInterface():
             solara.InputText(
                 label="Where do you want to go?"
                 if len(messages.value) == 0
-                else "What else do you want to know?",
+                else "What else would you want to know?",
                 value=prompt,
                 style={"flex-grow": "1"},
                 on_value=add_message,
@@ -604,7 +646,7 @@ def Page():
                 solara.v.Icon(children=["mdi-compass-rose"], size="36px")
                 solara.HTML(
                     tag="h2",
-                    unsafe_innerHTML="TravelAI <span style='font-size: 0.5em;'></span>",
+                    unsafe_innerHTML="HolidayPlannerAI <span style='font-size: 0.5em;'></span>",
                     style={"display": "inline-block"},
                 )
             with solara.Row(
