@@ -1,6 +1,6 @@
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-from config import OPENAI_API_KEY, AMADEUS_CLIENT_ID, AMADEUS_SECRET_ID, SYSTEM_PROMPT, MAPBOX_API_KEY
+from config import OPENAI_API_KEY, AMADEUS_CLIENT_ID, AMADEUS_SECRET_ID
 import os
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.chat_models import ChatOpenAI
@@ -19,35 +19,25 @@ import datetime
 from typing import Dict
 from amadeus import Client, ResponseError
 from hotel_list import HotelList
-import plotly.graph_objects as go
-import streamlit as st
+import solara
+
 os.environ["AMADEUS_CLIENT_ID"] = AMADEUS_CLIENT_ID
 os.environ["AMADEUS_CLIENT_SECRET"] = AMADEUS_SECRET_ID
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-os.environ["MAPBOX_API_KEY"] = MAPBOX_API_KEY
 
 amadeus = Client(
     client_id=AMADEUS_CLIENT_ID,
     client_secret=AMADEUS_SECRET_ID
 )
 
-weather_state = "weather"
-map_state = "map"
-markers_state = "markers"
-if weather_state not in st.session_state:
-    st.session_state[weather_state] = None
-
-if map_state not in st.session_state:
-    st.session_state[map_state] = {
-        "latitude": 46.7712,
-        "longitude": 23.6236,
-        "zoom": 16,
-    }
-
-if markers_state not in st.session_state:
-    st.session_state[markers_state] = None
 
 
+
+# class OpenMeteoInput(BaseModel):
+#     latitude: float = Field(..., description="Latitude of the location to fetch weather data for")
+#     longitude: float = Field(..., description="Longitude of the location to fetch weather data for")
+
+# @tool(args_schema=OpenMeteoInput)
 def get_current_temperature(latitude: float, longitude: float) -> dict:
     """Fetch current temperature for given coordinates."""
     
@@ -80,140 +70,90 @@ def get_current_temperature(latitude: float, longitude: float) -> dict:
     current_temperature = temperature_list[closest_time_index]
     current_humidity = humidity_list[closest_time_index]
     current_wind_speed = wind_speed_list[closest_time_index]
-    st.session_state[weather_state] = {
-        "current_temperature": current_temperature,
-        "current_humidity": current_humidity,
-        "current_wind_speed": current_wind_speed,
-    }
     return f'The current temperature is {current_temperature}°C the current humidity is {current_humidity}% and the current wind speed is {current_wind_speed}km/h'
 
-def update_map_state(latitude, longitude, zoom):
-    """OpenAI tool to update map in-app
-    """
-    st.session_state[map_state] = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "zoom": zoom,
-    }
-    return "Map updated"
-
-
-def add_markers_state(latitudes, longitudes, labels):
-    """OpenAI tool to update markers in-app
-    """
-    st.session_state[markers_state] = {
-        "lat": latitudes,
-        "lon": longitudes,
-        "text": labels,
-    }
-    return "Markers added"
 # @tool
-# def search_wikipedia(query: str) -> str:
-#     """Run Wikipedia search and get page summaries."""
-#     page_titles = wikipedia.search(query)
-#     summaries = []
-#     for page_title in page_titles[: 3]:
-#         try:
-#             wiki_page =  wikipedia.page(title=page_title, auto_suggest=False)
-#             summaries.append(f"Page: {page_title}\nSummary: {wiki_page.summary}")
-#         except (
-#             self.wiki_client.exceptions.PageError,
-#             self.wiki_client.exceptions.DisambiguationError,
-#         ):
-#             pass
-#     if not summaries:
-#         return "No good Wikipedia Search Result was found"
-#     return "\n\n".join(summaries)
+def search_wikipedia(query: str) -> str:
+    """Run Wikipedia search and get page summaries."""
+    page_titles = wikipedia.search(query)
+    summaries = []
+    for page_title in page_titles[: 3]:
+        try:
+            wiki_page =  wikipedia.page(title=page_title, auto_suggest=False)
+            summaries.append(f"Page: {page_title}\nSummary: {wiki_page.summary}")
+        except (
+            self.wiki_client.exceptions.PageError,
+            self.wiki_client.exceptions.DisambiguationError,
+        ):
+            pass
+    if not summaries:
+        return "No good Wikipedia Search Result was found"
+    return "\n\n".join(summaries)
 
 # class NearestAirportInput(BaseModel):
 #     latitude: float = Field(..., description="Latitude of the location to fetch the nearest airport for")
 #     longitude: float = Field(..., description="Longitude of the location to fetch the nearest airport for")
 
 # @tool(args_schema=NearestAirportInput) 
-# def nearest_relevant_airport(latitude: float, longitude: float)-> Dict:
-#     """Fetch the nearest airport for given coordinates."""
-#     try:
-#         response = amadeus.reference_data.locations.airports.get(
-#             latitude=latitude,
-#             longitude=longitude
-#         )
-#         #print(response.data)
-#         return response.data
+def nearest_relevant_airport(latitude: float, longitude: float)-> Dict:
+    """Fetch the nearest airport for given coordinates."""
+    try:
+        response = amadeus.reference_data.locations.airports.get(
+            latitude=latitude,
+            longitude=longitude
+        )
+        #print(response.data)
+        return response.data
 
-#     except ResponseError as error:
-#         return str(error)
+    except ResponseError as error:
+        return str(error)
 
 # class TravelRecommendationsInput(BaseModel):
 #     city_code: str = Field(..., description="City code to fetch travel recommendations for")
 
 # @tool(args_schema=TravelRecommendationsInput)
-# def travel_recommendations(city_code: str )-> str:
-#     """Fetch travel recommendations of other cities for given city code."""
-#     try:
-#         response = amadeus.reference_data.locations.points_of_interest.get(
-#             cityCode=city_code
-#         )
-#         return response.data
-#     except ResponseError as error:
-#         return str(error)
+def travel_recommendations(city_code: str )-> str:
+    """Fetch travel recommendations of other cities for given city code."""
+    try:
+        response = amadeus.reference_data.locations.points_of_interest.get(
+            cityCode=city_code
+        )
+        return response.data
+    except ResponseError as error:
+        return str(error)
 
 # class SearchPointOfInterestInput(BaseModel):
 #     latitude: float = Field(..., description="Latitude of the location to fetch the nearest points of interest")
 #     longitude: float = Field(..., description="Longitude of the location to fetch the nearest points of interest")
 
 # @tool(args_schema=SearchPointOfInterestInput)
-# def search_point_of_interest(latitude: float, longitude: float)-> Dict:
-#     """Fetch the nearest points of interest for given coordinates."""
-#     try:
-#         response = amadeus.reference_data.locations.points_of_interest.get(
-#             latitude=latitude,
-#             longitude=longitude
-#         )
-#         return response.data
-#     except ResponseError as error:
-#         return str(error)
+def search_point_of_interest(latitude: float, longitude: float)-> Dict:
+    """Fetch the nearest points of interest for given coordinates."""
+    try:
+        response = amadeus.reference_data.locations.points_of_interest.get(
+            latitude=latitude,
+            longitude=longitude
+        )
+        return response.data
+    except ResponseError as error:
+        return str(error)
 
 # class SearchHotels(BaseModel):
 #     city_code: str = Field(..., description="City code to fetch hotels for")
 
 # @tool(args_schema=SearchHotels)
-# def search_hotels(city_code: str)-> Dict:
-#     """Fetch hotels for given city code."""
-#     try:
-#         response = amadeus.reference_data.locations.hotels.by_city.get(
-#             cityCode=city_code
-#         )
-#         hotel_offers = []
-#         for hotel in response.data[:10]:
-#             list_offer = HotelList(hotel).construct_hotel_list()
-#             hotel_offers.append(list_offer)
-#         return hotel_offers
-#     except ResponseError as error:
-#         return str(error)
+def search_hotels(city_code: str)-> Dict:
+    """Fetch hotels for given city code."""
+    try:
+        response = amadeus.reference_data.locations.hotels.by_city.get(
+            cityCode=city_code
+        )
+        hotel_offers = []
+        for hotel in response.data[:10]:
+            list_offer = HotelList(hotel).construct_hotel_list()
+            hotel_offers.append(list_offer)
+        return hotel_offers[0]
+    except ResponseError as error:
+        return str(error)
 
-# class MoveMap(BaseModel):
-#     latitude: float = Field(..., description="Latitude of the location to move the map to")
-#     longitude: float = Field(..., description="Longitude of the location to move the map to")
-#     zoom: int = Field(..., description="Zoom level of the map")
-# def run_agent_with_executor(user_input: str) -> Dict:
-
-#     tools = [get_current_temperature, search_wikipedia, nearest_relevant_airport,
-#               travel_recommendations, search_point_of_interest, search_hotels]
-#     functions = [format_tool_to_openai_function(f) for f in tools]
-#     print(functions)
-#     model = ChatOpenAI(temperature=0, model="gpt-4-1106-preview").bind(functions=functions)
-#     prompt = ChatPromptTemplate.from_messages([
-#         ("system", SYSTEM_PROMPT),
-#         MessagesPlaceholder(variable_name="chat_history"),
-#         ("user", "{input}"),
-#         MessagesPlaceholder(variable_name="agent_scratchpad")
-#     ])
-
-#     agent_chain = RunnablePassthrough.assign(
-#         agent_scratchpad=lambda x: format_to_openai_functions(x["intermediate_steps"])
-#     ) | prompt | model | OpenAIFunctionsAgentOutputParser()
-#     memory = ConversationBufferMemory(return_messages=True, memory_key="chat_history")
-#     agent_executor = AgentExecutor(agent=agent_chain, tools=tools, verbose=True, memory=memory)
-
-#     return agent_executor.invoke({"input": user_input})
-# print(run_agent_with_executor("What is the weather in Berlin?")["output"])
+print(nearest_relevant_airport(48.8566, 2.3522))
