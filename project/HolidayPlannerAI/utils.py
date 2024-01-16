@@ -155,5 +155,3 @@ def search_hotels(city_code: str)-> Dict:
         return hotel_offers[0]
     except ResponseError as error:
         return str(error)
-
-print(nearest_relevant_airport(48.8566, 2.3522))

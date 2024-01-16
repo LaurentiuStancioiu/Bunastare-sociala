@@ -9,16 +9,18 @@ from openai import NotFoundError, OpenAI
 from openai.types.beta import Thread
 import solara
 from config import OPENAI_API_KEY, AMADEUS_CLIENT_ID, AMADEUS_SECRET_ID, OPENAI_ASSISTANT_ID
-from typing import Dict
+from typing import Dict, Optional, cast
 from amadeus import Client, ResponseError
 from hotel_list import HotelList
 import requests
 import wikipedia
 import datetime
-import sounddevice as sd
-import tempfile
-import wave
-import sys
+import solara.lab
+from solara_enterprise import auth
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 os.environ["AMADEUS_CLIENT_ID"] = AMADEUS_CLIENT_ID
 os.environ["AMADEUS_CLIENT_SECRET"] = AMADEUS_SECRET_ID
@@ -345,27 +347,17 @@ def assistant_tool_call(tool_call):
         "tool_call_id": tool_call.id,
         "output": return_value,
     }
+    print(tool_outputs)
     return tool_outputs
+
 
 
 @solara.component
 def Map():
-    # ipyleaflet.Map.element(  # type: ignore
-    #     zoom=zoom_level.value,
-    #     center=center.value,
-    #     scroll_wheel_zoom=True,
-    #     layers=[
-    #         ipyleaflet.TileLayer.element(url=url),
-    #         *[
-    #             ipyleaflet.Marker.element(location=k["location"], draggable=False)
-    #             for k in markers.value
-    #         ],
-    #     ],
-    # )
     icons = {
-    "hotel": {"icon_url": "/static/public/hotel_2.png", "icon_size": [25, 25]},
-    "airport": {"icon_url": "/static/public/airport.png", "icon_size": [25, 25]},
-    "point_of_interest": {"icon_url": "/static/public/point-of-interest.png", "icon_size": [25, 25]},
+    "hotel": {"icon_url": "https://github.com/LaurentiuStancioiu/Bunastare-sociala/blob/main/project/HolidayPlannerAI/public/bed.png?raw=true", "icon_size": [30, 30]},
+    "airport": {"icon_url": "https://github.com/LaurentiuStancioiu/Bunastare-sociala/blob/main/project/HolidayPlannerAI/public/airport_2.png?raw=true", "icon_size": [30, 30]},
+    "point_of_interest": {"icon_url": "https://github.com/LaurentiuStancioiu/Bunastare-sociala/blob/main/project/HolidayPlannerAI/public/point-of-interest.png?raw=true", "icon_size": [30, 30]},
     }
 
 
@@ -413,13 +405,13 @@ marker_message_shown = False
 
 @solara.component
 def ChatMessage(message):
-    global recording, audio_file_path, marker_message_shown
+    global marker_message_shown
 
     with solara.Row(style={"align-items": "flex-start"}):
         # Handle recording status
-        if recording:
-            solara.v.Icon(children=["mdi-microphone"], style_="padding-top:10px;")
-            solara.Markdown("Recording...")
+        # if recording:
+        #     solara.v.Icon(children=["mdi-microphone"], style_="padding-top:10px;")
+        #     solara.Markdown("Recording...")
 
         # Process different types of messages
         if isinstance(message, dict):
@@ -455,73 +447,6 @@ def ChatMessage(message):
             solara.v.Icon(children=["mdi-compass-outline"], style_="padding-top: 10px;")
             solara.Preformatted(repr(message))
 
-
-
-def VoiceRecordingButton():
-    global audio_file_path
-
-    recording = solara.use_reactive(False)  # Reactive variable to track recording state
-    audio_frames = solara.use_reactive([])  # Reactive variable to store audio frames
-
-    def start_stop_recording(event=None):  # Accept an argument, even if it's not used
-        global audio_file_path
-
-        if recording.value:
-            # Stop recording
-            recording.set(False)  # Set recording state to False
-
-            # Save the audio file
-            if audio_file_path:
-                save_audio(audio_file_path, audio_frames.value)  # Pass audio_frames.value
-                transcript = transcribe_audio(audio_file_path)
-                os.remove(audio_file_path)
-                audio_file_path = None
-
-                # Add the transcript to the user's message
-                solara.state.ChatMessage.input(message={"role": "user", "content": transcript})
-                audio_frames.set([])  # Clear audio frames
-        else:
-            # Start recording
-            recording.set(True)  # Set recording state to True
-            audio_file_path = tempfile.mktemp(suffix=".wav")
-            fs = 44100  # Sample rate (you can adjust this)
-            duration = 10  # Recording duration in seconds (you can adjust this)
-            audio_frames.set([])  # Clear audio frames
-
-            with sd.OutputStream(samplerate=fs, channels=1, callback=callback):
-                sd.sleep(int(duration * 1000))
-
-    def callback(indata, frames, time, status):
-        if status:
-            print(status, file=sys.stderr)
-        if recording.value:  # Check the .value attribute of the reactive variable
-            audio_frames.append(indata.copy())
-
-    def save_audio(file_path, frames):  # Accept frames as an argument
-        with wave.open(file_path, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(44100)
-            wf.writeframes(b''.join(frames))  # Use the frames argument
-
-    def transcribe_audio(file_path):
-        with open(file_path, "rb") as audio_file:
-            transcript = openai.audio.transcriptions.create(
-                model="whisper-1", 
-                file=audio_file
-            )
-            if transcript.status_code == 200:
-                return transcript["text"]
-            else:
-                return f"Transcription error: {transcript.status_code}"
-
-    with solara.Row():
-        solara.Switch(
-            label="Record Voice",
-            value=recording.value,
-            style="margin-right: 10px;",
-            on_value=start_stop_recording,  # Toggle recording when the switch value changes
-        )
 
 @solara.component
 def ChatBox(children=[]):
@@ -629,68 +554,102 @@ def ChatInterface():
                 disabled=result.state == solara.ResultState.RUNNING,
             )
 
-            VoiceRecordingButton()
+            # VoiceRecordingButton()
             solara.ProgressLinear(result.state == solara.ResultState.RUNNING)
             if result.state == solara.ResultState.ERROR:
                 solara.Error(repr(result.error))
 
 
+
 @solara.component
 def Page():
-    with solara.Column(
-        classes=["ui-container"],
-        gap="5vh",
-    ):
-        with solara.Row(justify="space-between"):
-            with solara.Row(gap="10px", style={"align-items": "center"}):
-                solara.v.Icon(children=["mdi-compass-rose"], size="36px")
-                solara.HTML(
-                    tag="h2",
-                    unsafe_innerHTML="HolidayPlannerAI <span style='font-size: 0.5em;'></span>",
-                    style={"display": "inline-block"},
-                )
-            with solara.Row(
-                gap="30px",
-                style={"align-items": "center"},
-                classes=["link-container"],
-                justify="end",
+    user = auth.user.value
+    #print(user)
+    if not user:
+        with solara.Column(
+                classes=["ui-container"],  # You might need additional classes here
+                style={
+                "height": "100%",  # Adjust height as needed
+                "display": "flex",
+                "justify-content": "center",  # Centers content horizontally
+                "align-items": "center"  # Centers content vertically
+            }
             ):
-                with solara.Row(gap="5px", style={"align-items": "center"}):
-                    solara.Text("Source Code:", style="font-weight: bold;")
-                    with solara.v.Btn(
-                        icon=True,
-                        tag="a",
-                        attributes={
-                            "href": "https://github.com/LauraDiosan-CS/projects-holidayplanner2023",
-                            "title": "TravelAI Source Code",
-                            "target": "_blank",
-                        },
-                    ):
-                        solara.v.Icon(children=["mdi-github-circle"])
-                with solara.Row(gap="5px", style={"align-items": "center"}):
-                    solara.Text("Powered by Solara:", style="font-weight: bold;")
-                    with solara.v.Btn(
-                        icon=True,
-                        tag="a",
-                        attributes={
-                            "href": "https://solara.dev/",
-                            "title": "Solara",
-                            "target": "_blank",
-                        },
-                    ):
+            solara.Button("Login", icon_name="mdi-login", href = auth.get_login_url())
+    
+    else:
+        userinfo = auth.user.value["userinfo"]
+        if 'name' in userinfo and userinfo["email"] in ["lau.stancioiu@gmail.com", "laurentiu.stancioiu@gmail.com", "nicolaemorosan2@gmail.com", "laura.diosan@ubbcluj.ro"]:
+            with solara.Column(
+                classes=["ui-container"],
+                gap="5vh",
+            ):
+                with solara.Row(justify="space-between"):
+                    with solara.Row(gap="10px", style={"align-items": "center"}):
+                        solara.v.Icon(children=["mdi-compass-rose"], size="36px")
                         solara.HTML(
-                            tag="img",
-                            attributes={
-                                "src": "https://solara.dev/static/public/logo.svg",
-                                "width": "24px",
-                            },
+                            tag="h2",
+                            unsafe_innerHTML="HolidayPlannerAI <span style='font-size: 0.5em;'></span>",
+                            style={"display": "inline-block"},
                         )
+                    with solara.Row(
+                        gap="30px",
+                        style={"align-items": "center"},
+                        classes=["link-container"],
+                        justify="end",
+                    ):
+                        with solara.Row(gap="5px", style={"align-items": "center"}):
+                            solara.Text("Source Code:", style="font-weight: bold;")
+                            with solara.v.Btn(
+                                icon=True,
+                                tag="a",
+                                attributes={
+                                    "href": "https://github.com/LauraDiosan-CS/projects-holidayplanner2023",
+                                    "title": "HolidayPlannerAI Source Code",
+                                    "target": "_blank",
+                                },
+                            ):
+                                solara.v.Icon(children=["mdi-github-circle"])
+                        with solara.Row(gap="5px", style={"align-items": "center"}):
+                            solara.Text("Powered by Solara:", style="font-weight: bold;")
+                            with solara.v.Btn(
+                                icon=True,
+                                tag="a",
+                                attributes={
+                                    "href": "https://solara.dev/",
+                                    "title": "Solara",
+                                    "target": "_blank",
+                                },
+                            ):
+                                solara.HTML(
+                                    tag="img",
+                                    attributes={
+                                        "src": "https://solara.dev/static/public/logo.svg",
+                                        "width": "24px",
+                                    },
+                                )
 
-        with solara.Row(
-            justify="space-between", style={"flex-grow": "1"}, classes=["container-row"]
-        ):
-            ChatInterface()
-            with solara.Column(classes=["map-container"]):
-                Map()
+                with solara.Row(
+                    justify="space-between", style={"flex-grow": "1"}, classes=["container-row"]
+                ):
+                    ChatInterface()
+                    with solara.Column(classes=["map-container"]):
+                        Map()
 
-        solara.Style(app_style)
+                solara.Style(app_style)
+                solara.Button("Logout", icon_name="mdi-logout", href = auth.get_logout_url())
+        else:
+            with solara.Column(
+                classes=["ui-container"],  # You might need additional classes here
+                style={
+                "height": "100%",  # Adjust height as needed
+                "display": "flex",
+                "justify-content": "center",  # Centers content horizontally
+                "align-items": "center"  # Centers content vertically
+            }
+            ):
+                solara.Text(
+                    "You are not authorized to use this app. Please write an e-mail to laurentiu.stancioiu@gmail.com to get access.",
+                    style="font-weight: bold;"
+                    )
+                solara.Button("Login", icon_name="mdi-login", href = auth.get_login_url())
