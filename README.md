@@ -8,10 +8,10 @@ TravelPlannerAI leverages a robust tech stack to provide users with a seamless a
 [Amadeus for Developers](https://developers.amadeus.com/) is a crucial component of our tech stack, enabling us to access real-time travel-related data. This includes information on flights, hotels, and points of interest near the destination city. Amadeus for Developers empowers TravelPlannerAI to offer up-to-date and accurate details for a user's travel itinerary.
 
 ### 2. OpenAI GPT-4-turbo
-[OpenAI GPT-4-turbo](https://openai.com/) serves as the backbone of our language processing capabilities. Recognized as state-of-the-art (SOTA) for language tasks, this model is integrated for its advanced language understanding and its convenient built-in function calling. It plays a central role in understanding user queries and generating relevant responses.
+[OpenAI GPT-4-turbo](https://openai.com/) serves as the backbone of our language processing capabilities. Recognized as state-of-the-art (SOTA) for language tasks, this model is integrated for its advanced language understanding and its convenient built-in function calling. It plays a central role in understanding user queries and generating relevant responses. Also, with the Assistants API, we keep track of our user responses while enabeling features such as Code Interpreter, retrieval and more.
 
-### 3. LangChain
-LangChain acts as the intermediary between the user interface and the various tools integrated into TravelPlannerAI. This component is responsible for processing user inputs, connecting with the OpenAI model, and facilitating communication with other external services. LangChain serves as the glue that seamlessly binds together our functions and the Language Model (LLM).
+### 3. Solara
+[Solara](https://solara.dev/api) is our framework to build frontend from our app within our python backhand. We chose it because it has high reactivity and a clear logic for creating pages chat interfaces and even maps.
 
 ### 4. Open Meteo API
 [Open Meteo API](https://open-meteo.com/) is utilized to fetch real-time weather information. By integrating this API, TravelPlannerAI ensures that users have access to the latest weather updates for their chosen destinations, allowing for informed travel decisions.
@@ -25,16 +25,30 @@ With a powerful combination of Amadeus for Developers, OpenAI GPT-4-turbo, LangC
 
 ## Example
 
+### Asking about general information using the Wikipedia API
+![chrome_gn9B8Ux2uO](https://github.com/LauraDiosan-CS/projects-holidayplanner2023/assets/87995826/98d60f25-52c8-4713-b052-cf26f2846391)
+
+**Observation**: As you can see this query does not have map interactivity.
 ### Asking about real time weather data
-![pic1](https://github.com/LaurentiuStancioiu/Bunastare-sociala/assets/87995826/07b6bfcd-d32f-4e6c-a035-f75f9ddded26)  
+![chrome_mrepX8RlOU](https://github.com/LauraDiosan-CS/projects-holidayplanner2023/assets/87995826/ad0e9779-44a2-46b7-9830-9982e4f16f2c)
+
 
 ### Asking about airport information
-![pic2](https://github.com/LaurentiuStancioiu/Bunastare-sociala/assets/87995826/e679a586-7935-4900-9dff-a7658848f3a9)
+![chrome_XDC5OD2gli](https://github.com/LauraDiosan-CS/projects-holidayplanner2023/assets/87995826/098b966d-94a4-4609-95cf-56c3bf35b3ab)
+
 
 ### Asking about hotels
-![pic3](https://github.com/LaurentiuStancioiu/Bunastare-sociala/assets/87995826/25db040d-c213-4052-9cf2-a0b61a29603c)
+![chrome_oiYiY64D88](https://github.com/LauraDiosan-CS/projects-holidayplanner2023/assets/87995826/bbae5347-d16f-4a60-83e1-6c7d612844e2)
+
 
 ### Asking about places to visit
-![pic4](https://github.com/LaurentiuStancioiu/Bunastare-sociala/assets/87995826/60e9e33d-2ea8-4aa0-b234-08a5b1f48b51)
+![chrome_kfOxwKSbaB](https://github.com/LauraDiosan-CS/projects-holidayplanner2023/assets/87995826/2be4b609-98af-4551-8b9a-60fb0cb63cce)
 
+### Make an itinerary
+![chrome_Cv6vPMVcRx](https://github.com/LauraDiosan-CS/projects-holidayplanner2023/assets/87995826/61ff28fb-418e-4083-bec6-f1ce80a58ee8)
+![chrome_oIsphKUHuw](https://github.com/LauraDiosan-CS/projects-holidayplanner2023/assets/87995826/7901fb08-13a6-4f10-8310-71cd9856dc16)
+
+
+## How to access the website
+The application was deployed using fly.io. You can acces the website using Auth0 authentication at: [TravelPlannerAI](https://holidayplannerai.fly.dev/). For now the only e-mails that have access after verification are **laura.diosan@ubbcluj.ro**, **nicolaemorosan2@gmail.com** and **laurentiu.stancioiu@gmail.com**
 ### More functionalities coming soon  😄 
